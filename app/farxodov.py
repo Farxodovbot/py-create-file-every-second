@@ -135,7 +135,8 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u["step"] = None
         save(db)
         await context.bot.send_message(chat_id=ADMIN_ID, text=f"🆕 BUYURTMA\nUser: {uid}\nUC: {uc}\nID: {game_id}")
-        await update.message.reply_text("✅ Buyurtma qabul qilindi!")
+        await update.message.reply_text("✅ Buyurtma qabul qilindi!
+Tez orada hisobingizga yuboriladi")
 
 async def addbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
