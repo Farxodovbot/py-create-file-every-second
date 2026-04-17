@@ -1,121 +1,88 @@
-from flask import Flask, request, redirect
-import sqlite3
-import os
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mening Bozorim | Katalog</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root { --main-color: #7000ff; --accent-color: #ffbe1f; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: #f2f4f7; }
+        
+        header { background: white; padding: 15px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
+        header h1 { color: var(--main-color); margin: 0; font-size: 24px; }
 
-app = Flask(__name__)
+        .container { max-width: 1200px; margin: 20px auto; padding: 0 10px; }
+        
+        /* Katalog Grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
+        
+        /* Mahsulot kartochkasi */
+        .card { background: white; border-radius: 12px; overflow: hidden; transition: 0.3s; position: relative; display: flex; flex-direction: column; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .card img { width: 100%; height: 200px; object-fit: cover; }
+        
+        .card-info { padding: 12px; flex-grow: 1; }
+        .price { font-weight: bold; font-size: 18px; color: #000; margin: 5px 0; }
+        .title { font-size: 14px; color: #4d4e59; height: 40px; overflow: hidden; }
+        
+        .btn-contact { 
+            background: var(--main-color); color: white; text-align: center; 
+            padding: 10px; text-decoration: none; border-radius: 8px; 
+            display: block; margin-top: 10px; font-weight: 600; font-size: 14px;
+        }
+        .btn-contact:active { background: #5a00cc; }
 
-# DB INIT
-def init_db():
-    conn = sqlite3.connect("market.db")
-    c = conn.cursor()
+        /* Admin tugmasi (shartli) */
+        .admin-float { position: fixed; bottom: 20px; right: 20px; background: var(--accent-color); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 1000; }
+    </style>
+</head>
+<body>
 
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS products (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        price TEXT,
-        photo TEXT
-    )
-    """)
+<header>
+    <h1>Mening Marketim</h1>
+</header>
 
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product TEXT,
-        price TEXT,
-        address TEXT
-    )
-    """)
+<div class="container">
+    <div id="product-list" class="grid">
+        <p>Yuklanmoqda...</p>
+    </div>
+</div>
 
-    conn.commit()
-    conn.close()
+<a href="admin.html" class="admin-float">➕</a>
 
-init_db()
+<script>
+    // Supabase sozlamalari (Buni o'zingizning Supabase URL va Key bilan almashtiring)
+    const SUPABASE_URL = 'SIZNING_SUPABASE_URL';
+    const SUPABASE_KEY = 'SIZNING_SUPABASE_ANON_KEY';
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-# HOME (MARKET)
-@app.route('/')
-def home():
-    conn = sqlite3.connect("market.db")
-    c = conn.cursor()
-    c.execute("SELECT * FROM products")
-    products = c.fetchall()
-    conn.close()
+    async function getProducts() {
+        let { data: products, error } = await _supabase.from('products').select('*');
+        const container = document.getElementById('product-list');
+        
+        if (error) {
+            container.innerHTML = "<p>Xatolik yuz berdi!</p>";
+            return;
+        }
 
-    html = """
-    <h1>🛒 MINI MARKET</h1>
-    <a href='/admin'>⚙ Admin Panel</a>
-    <hr>
-    """
+        container.innerHTML = ""; // Tozalash
+        products.forEach(item => {
+            container.innerHTML += `
+                <div class="card">
+                    <img src="${item.image_url || 'https://via.placeholder.com/200'}" alt="${item.name}">
+                    <div class="card-info">
+                        <div class="price">${Number(item.price).toLocaleString()} so'm</div>
+                        <div class="title">${item.name}</div>
+                        <a href="tel:${item.phone}" class="btn-contact">Sotuvchi bilan bog'lanish</a>
+                    </div>
+                </div>
+            `;
+        });
+    }
 
-    for p in products:
-        html += f"""
-        <div style='border:1px solid #ddd; padding:10px; margin:10px; width:250px'>
-            <img src="{p[3]}" width="150"><br>
-            <b>{p[1]}</b><br>
-            💰 {p[2]}<br><br>
+    getProducts();
+</script>
 
-            <form method="POST" action="/order">
-                <input type="hidden" name="name" value="{p[1]}">
-                <input type="hidden" name="price" value="{p[2]}">
-                <input name="address" placeholder="Manzil yozing" required>
-                <button type="submit">🛒 Buyurtma</button>
-            </form>
-        </div>
-        """
-
-    return html
-
-# ORDER
-@app.route('/order', methods=['POST'])
-def order():
-    name = request.form['name']
-    price = request.form['price']
-    address = request.form['address']
-
-    conn = sqlite3.connect("market.db")
-    c = conn.cursor()
-    c.execute("INSERT INTO orders (product, price, address) VALUES (?, ?, ?)",
-              (name, price, address))
-    conn.commit()
-    conn.close()
-
-    return """
-    <h2>✅ Buyurtma qabul qilindi!</h2>
-    <a href='/'>🏠 Orqaga</a>
-    """
-
-# ADMIN PANEL
-@app.route('/admin', methods=['GET', 'POST'])
-def admin():
-    if request.method == 'POST':
-        name = request.form['name']
-        price = request.form['price']
-        photo = request.form['photo']
-
-        conn = sqlite3.connect("market.db")
-        c = conn.cursor()
-        c.execute("INSERT INTO products (name, price, photo) VALUES (?, ?, ?)",
-                  (name, price, photo))
-        conn.commit()
-        conn.close()
-
-        return redirect('/admin')
-
-    return """
-    <h1>⚙ ADMIN PANEL</h1>
-
-    <form method="POST">
-        <input name="name" placeholder="Mahsulot nomi"><br><br>
-        <input name="price" placeholder="Narxi"><br><br>
-        <input name="photo" placeholder="Rasm URL"><br><br>
-        <button type="submit">Qo'shish</button>
-    </form>
-
-    <br>
-    <a href="/">🏠 Marketga qaytish</a>
-    """
-
-# RENDER UCHUN PORT
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+</body>
+</html>
