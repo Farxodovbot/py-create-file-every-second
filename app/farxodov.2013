@@ -1,0 +1,52 @@
+import os
+import asyncio
+import yt_dlp
+from telegram import Update
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+
+# SIZNING TOKENINGIZ
+TOKEN = "8717890222:AAEb501qDuzVglFzEKM3wAF-YwbSq9-1jDc"
+
+async def download_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    url = update.message.text
+    
+    # Faqat havolalarni tekshirish
+    if not url.startswith("http"):
+        return
+
+    status_msg = await update.message.reply_text("⏳ Yuklanmoqda, kuting...")
+
+    try:
+        # Yuklash sozlamalari
+        ydl_opts = {
+            'format': 'best',
+            'outtmpl': 'downloaded_video.mp4',
+            'max_filesize': 50 * 1024 * 1024, # 50MB gacha cheklov
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+
+        # Videoni yuborish
+        await update.message.reply_video(
+            video=open('downloaded_video.mp4', 'rb'),
+            caption="✅ Tayyor! @SizningBotingiz"
+        )
+        await status_msg.delete()
+
+    except Exception as e:
+        await status_msg.edit_text(f"❌ Xatolik yuz berdi: Havola noto'g'ri yoki video juda katta.")
+    
+    finally:
+        # Faylni tozalash
+        if os.path.exists('downloaded_video.mp4'):
+            os.remove('downloaded_video.mp4')
+
+if __name__ == '__main__':
+    app = ApplicationBuilder().token(TOKEN).build()
+    
+    # Har qanday matn (havola) kelganda yuklashni boshlash
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), download_media))
+    
+    print("Video yuklovchi bot ishga tushdi...")
+    app.run_polling()
