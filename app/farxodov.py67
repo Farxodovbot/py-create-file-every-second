@@ -1,0 +1,42 @@
+import os
+import yt_dlp
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
+
+# BOT TOKEN
+TOKEN = "8717890222:AAEb501qDuzVglFzEKM3wAF-YwbSq9-1jDc"
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🔥 Assalomu alaykum! @Mixsavedibot xizmatingizda.\n"
+        "Video yuklash uchun havola yuboring."
+    )
+
+async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    url = update.message.text
+    if "http" not in url: return
+    keyboard = [[InlineKeyboardButton("🎬 Videoni yuklash", callback_data=f"dl|{url}")]]
+    await update.message.reply_text("Sifat: 720p (HD)", reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer("Yuklanmoqda...")
+    url = query.data.split("|")[1]
+    file = f"video_{query.from_user.id}.mp4"
+    
+    try:
+        ydl_opts = {'format': 'best', 'outtmpl': file, 'quiet': True}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        
+        await query.message.reply_video(video=open(file, 'rb'), caption="✅ @Mixsavedibot orqali yuklandi")
+        os.remove(file)
+    except:
+        await query.message.reply_text("❌ Xatolik! Video yuklanmadi.")
+
+if __name__ == '__main__':
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler('start', start))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_link))
+    app.add_handler(CallbackQueryHandler(button_callback))
+    app.run_polling()
