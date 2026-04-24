@@ -13,7 +13,7 @@ from telegram.ext import (
 )
 
 # ================= CONFIG =================
-BOT_TOKEN = 8735085300:AAG4of7ojBjVbCf0UzIowPu0YVaUmrRNbWU
+BOT_TOKEN = 8735085300:AAHowPOPqi2vRkoeK69mSm1OSY61m_v6IKI
 ADMIN_ID = 7253593181
 
 PORT = int(os.environ.get("PORT", 5000))
