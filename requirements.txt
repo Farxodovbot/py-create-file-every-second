@@ -1,6 +1,4 @@
-flake8
-flake8-annotations
-flake8-quotes
-flake8-variables-names
-pep8-naming
-pytest
+
+aiogram==3.4.1
+flask
+gunicorn
