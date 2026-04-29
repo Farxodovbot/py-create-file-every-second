@@ -1,0 +1,102 @@
+import telebot
+from telebot import types
+from flask import Flask
+from threading import Thread
+import time
+import os
+
+# 1. WEB SERVER (UptimeRobot va Render uchun)
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot 100% Online va Xavfsiz!"
+
+def run():
+    # Render uchun 8080 portini majburiy sozlaymiz
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.daemon = True
+    t.start()
+
+# 2. TELEGRAM BOT SOZLAMALARI
+TOKEN = "8635058894:AAHnof_upa_bWpcL3b6SNVt7wNO-t74zBxg"
+ADMIN_ID = 7253593181
+CHANNEL_ID = "@AnimeFonuzbaza" # Kanal manzilingiz
+
+bot = telebot.TeleBot(TOKEN)
+
+# DIQQAT: Bu vaqtinchalik xotira. Restartdan so'ng ma'lumotlar o'chadi.
+# Uni doimiy qilish uchun keyinroq MongoDB ulaymiz.
+anime_db = {}
+
+# Obunani tekshirish
+def check_sub(user_id):
+    try:
+        status = bot.get_chat_member(CHANNEL_ID, user_id).status
+        return status in ['member', 'administrator', 'creator']
+    except:
+        return True # Xatolik bo'lsa o'tkazib yuboradi
+
+# --- START VA KODLARNI QABUL QILISH ---
+@bot.message_handler(commands=['start'])
+def start(message):
+    args = message.text.split()
+    if len(args) > 1:
+        code = args[1]
+        if code in anime_db:
+            bot.send_video(message.chat.id, anime_db[code], caption=f"🍿 Kod: {code}")
+        else:
+            bot.send_message(message.chat.id, "🔍 Kechirasiz, bu kodli anime topilmadi.")
+    else:
+        bot.send_message(message.chat.id, "👋 Salom! Menga anime kodini yuboring.")
+
+# --- ADMIN PANEL ---
+@bot.message_handler(commands=['admin'])
+def admin(message):
+    if message.from_user.id == ADMIN_ID:
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Anime qo'shish ➕", "Post yaratish 📝")
+        bot.send_message(message.chat.id, "Admin panel ochildi:", reply_markup=markup)
+
+# --- ANIME QO'SHISH JARAYONI ---
+@bot.message_handler(func=lambda m: m.text == "Anime qo'shish ➕")
+def add_anime_start(message):
+    if message.from_user.id == ADMIN_ID:
+        bot.send_message(message.chat.id, "📹 Menga videoni yuboring:")
+        bot.register_next_step_handler(message, get_video)
+
+def get_video(message):
+    if message.video:
+        file_id = message.video.file_id
+        bot.send_message(message.chat.id, "🔢 Endi bu video uchun KOD yuboring:")
+        bot.register_next_step_handler(message, save_anime, file_id)
+    else:
+        bot.send_message(message.chat.id, "❌ Bu video emas, qaytadan urinib ko'ring.")
+
+def save_anime(message, file_id):
+    code = message.text
+    anime_db[code] = file_id
+    bot.send_message(message.chat.id, f"✅ Saqlandi! Endi '{code}' yozilsa video chiqadi.")
+
+# --- ODDIY MATN SIFATIDA KOD YOZILSA ---
+@bot.message_handler(func=lambda m: True)
+def handle_all_messages(message):
+    code = message.text
+    if code in anime_db:
+        bot.send_video(message.chat.id, anime_db[code], caption=f"🍿 Kod: {code}")
+    elif not message.text.startswith('/'):
+        bot.send_message(message.chat.id, "🔍 Bu kod bo'yicha hech narsa topilmadi.")
+
+# --- ISHGA TUSHIRISH ---
+if __name__ == "__main__":
+    keep_alive() # Web serverni yoqish
+    
+    # 409 Conflict xatosini oldini olish uchun
+    bot.remove_webhook()
+    time.sleep(1)
+    
+    print("Bot muvaffaqiyatli ishga tushdi!")
+    bot.infinity_polling(skip_pending=True)
