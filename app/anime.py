@@ -21,8 +21,8 @@ def keep_alive():
     t.daemon = True
     t.start()
 
-# 2. BOT SOZLAMALARI
-TOKEN = "8635058894:AAHnof_upa_bWpcL3b6SNVt7wNO-t74zBxg"
+# 2. BOT 8635058894:AAGFI6uBoJhoh7GbICC5FSksl0zqPMcTQz8
+TOKEN = ""
 ADMIN_ID = 7253593181
 bot = telebot.TeleBot(TOKEN)
 
