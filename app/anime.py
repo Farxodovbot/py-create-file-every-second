@@ -54,7 +54,7 @@ def start(message):
         else:
             bot.send_message(message.chat.id, "😔 Bunday kodli anime topilmadi.")
     else:
-        bot.send_message(message.chat.id, "👋 Salom! Anime kodini yuboring yoki /admin yozing.")
+        bot.send_message(message.chat.id, "👋 Salom! Anime kodini yuboring.")
 
 # --- ADMIN PANEL ---
 @bot.message_handler(commands=['admin'])
