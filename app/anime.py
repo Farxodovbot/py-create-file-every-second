@@ -16,7 +16,7 @@ def keep_alive():
     t.start()
 
 # 2. BOT SOZLAMALARI
-TOKEN = "8635058894:AAGFI6uBoJhoh7GbICC5FSksl0zqPMcTQz8"
+TOKEN = 8635058894:AAHaclJn7mmyeGhJ5wSFFMTLpo8CQ7UWhmg
 ADMIN_ID = 7253593181
 CHANNEL_ID = "@AnimeFonuzbaza" # Kanalingiz manzili (Bot u yerda admin bo'lishi shart)
 BOT_USERNAME = "AnimeFon_uz_Bot" # Bot manzili (@ belgisiz)
