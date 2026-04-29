@@ -3,11 +3,10 @@ import telebot
 from telebot import types
 
 # --- SOZLAMALAR ---
-TOKEN = "8635058894:AAHGygl5VARXfsNjvvbsRMFDQh1pbmGGFnM"
+TOKEN = ""8635058894:AAHnof_upa_bWpcL3b6SNVt7wNO-t74zBxg
 ADMIN_ID = 7253593181
 CHANNEL_ID = "@AnimeFonuzbaza" # Majburiy obuna va post yuborish uchun
 bot = telebot.TeleBot(TOKEN)
-
 # Vaqtincha ma'lumot saqlash
 user_data = {}
 
