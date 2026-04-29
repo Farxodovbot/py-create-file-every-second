@@ -1,105 +1,126 @@
-import os
-import asyncio
-import sqlite3
-import logging
-from flask import Flask
-from threading import Thread
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-# --- RENDER UCHUN WEB SERVER ---
-web_app = Flask(__name__)
+import telebot
+from telebot import types
 
-@web_app.route('/')
-def home():
-    return "Bot is live!"
-
-def run_web():
-    port = int(os.environ.get("PORT", 8080))
-    web_app.run(host='0.0.0.0', port=port)
-
-# --- BOT LOGIKASI ---
+# --- SOZLAMALAR ---
 TOKEN = "8635058894:AAHGygl5VARXfsNjvvbsRMFDQh1pbmGGFnM"
 ADMIN_ID = 7253593181
+CHANNEL_ID = "@AnimeFonuzbaza" # Majburiy obuna va post yuborish uchun
+bot = telebot.TeleBot(TOKEN)
 
-# DB ulanishi
-conn = sqlite3.connect("anime_baza.db", check_same_thread=False)
-cur = conn.cursor()
-cur.execute("CREATE TABLE IF NOT EXISTS animelar (code TEXT PRIMARY KEY, title TEXT, photo TEXT, eps INTEGER)")
-cur.execute("CREATE TABLE IF NOT EXISTS qismlar (code TEXT, ep_num INTEGER, link TEXT)")
-conn.commit()
+# Vaqtincha ma'lumot saqlash
+user_data = {}
 
-bot = Bot(token=TOKEN)
-dp = Dispatcher()
-
-# START
-@dp.message(Command("start"))
-async def start_handler(message: types.Message):
-    await message.answer("👋 Anime kodini yuboring (masalan: 001)")
-
-# ADMIN PANEL
-@dp.message(Command("admin"))
-async def admin_handler(message: types.Message):
-    if message.from_user.id != ADMIN_ID: return
-    text = "<b>Admin Panel</b>\n\n➕ /add kod|nomi|rasm|soni\n🎬 /set kod|qism|link"
-    await message.answer(text, parse_mode="HTML")
-
-# ANIME QO'SHISH
-@dp.message(Command("add"))
-async def add_anime(message: types.Message):
-    if message.from_user.id != ADMIN_ID: return
+# --- MAJBURIY OBUNA TEKSHIRISH ---
+def check_sub(user_id):
     try:
-        data = message.text.replace("/add ", "").split("|")
-        cur.execute("INSERT OR REPLACE INTO animelar VALUES (?, ?, ?, ?)", (data[0], data[1], data[2], int(data[3])))
-        conn.commit()
-        await message.answer("✅ Anime qo'shildi!")
+        member = bot.get_chat_member(CHANNEL_ID, user_id)
+        if member.status in ['member', 'administrator', 'creator']:
+            return True
+        return False
     except:
-        await message.answer("❌ Xato! Format: /add 001|Nomi|Rasm|12")
+        return False
 
-# QISM QO'SHISH
-@dp.message(Command("set"))
-async def set_ep(message: types.Message):
-    if message.from_user.id != ADMIN_ID: return
-    try:
-        data = message.text.replace("/set ", "").split("|")
-        cur.execute("INSERT OR REPLACE INTO qismlar VALUES (?, ?, ?)", (data[0], int(data[1]), data[2]))
-        conn.commit()
-        await message.answer("✅ Qism qo'shildi!")
-    except:
-        await message.answer("❌ Xato! Format: /set 001|1|link")
+# --- START BUYRUG'I ---
+@bot.message_handler(commands=['start'])
+def start_cmd(message):
+    if not check_sub(message.from_user.id):
+        markup = types.InlineKeyboardMarkup()
+        btn_sub = types.InlineKeyboardButton("Obuna bo'lish ➕", url=f"https://t.me/{CHANNEL_ID[1:]}")
+        btn_done = types.InlineKeyboardButton("Tekshirish ✅", callback_data="check_sub")
+        markup.add(btn_sub)
+        markup.add(btn_done)
+        bot.send_message(message.chat.id, f"⚠️ Kechirasiz, botdan foydalanish uchun kanalimizga obuna bo'lishingiz kerak!", reply_markup=markup)
+        return
+    
+    bot.send_message(message.chat.id, "👋 Xush kelibsiz! Anime kodini yuboring.")
 
-# QIDIRUV
-@dp.message(F.text.regexp(r'^\d+$'))
-async def search_handler(message: types.Message):
+# --- ADMIN PANEL ---
+@bot.message_handler(commands=['admin'])
+def admin_panel(message):
+    if message.from_user.id == ADMIN_ID:
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Post yaratish 📝", "Anime qo'shish ➕")
+        bot.send_message(message.chat.id, "🎛 Admin panelga xush kelibsiz!", reply_markup=markup)
+
+# --- ANIME QO'SHISH (ID OLISH) ---
+@bot.message_handler(func=lambda message: message.text == "Anime qo'shish ➕")
+def add_anime(message):
+    if message.from_user.id == ADMIN_ID:
+        bot.send_message(message.chat.id, "📹 Menga videoni yuboring (file_id olish uchun):")
+
+@bot.message_handler(content_types=['video'])
+def save_video(message):
+    if message.from_user.id == ADMIN_ID:
+        v_id = message.video.file_id
+        bot.send_message(message.chat.id, f"✅ Video ID olindi:\n\n`{v_id}`", parse_mode="Markdown")
+
+# --- KANALGA POST YARATISH ---
+@bot.message_handler(func=lambda message: message.text == "Post yaratish 📝")
+def start_post(message):
+    if message.from_user.id == ADMIN_ID:
+        bot.send_message(message.chat.id, "1️⃣ Anime uchun rasm yuboring:")
+        bot.register_next_step_handler(message, get_photo)
+
+def get_photo(message):
+    if message.content_type != 'photo':
+        bot.send_message(message.chat.id, "❌ Xato! Rasm yuboring.")
+        return
+    user_data['photo'] = message.photo[-1].file_id
+    bot.send_message(message.chat.id, "2️⃣ Anime nomini yozing:")
+    bot.register_next_step_handler(message, get_name)
+
+def get_name(message):
+    user_data['name'] = message.text
+    bot.send_message(message.chat.id, "3️⃣ Janrini yozing (#Jangovar #Horror):")
+    bot.register_next_step_handler(message, get_genre)
+
+def get_genre(message):
+    user_data['genre'] = message.text
+    bot.send_message(message.chat.id, "4️⃣ Jami qismlar soni (Kino bo'lsa 'Kino' deb yozing):")
+    bot.register_next_step_handler(message, get_parts)
+
+def get_parts(message):
+    user_data['parts'] = message.text
+    bot.send_message(message.chat.id, "5️⃣ Anime kodini yozing:")
+    bot.register_next_step_handler(message, get_code)
+
+def get_code(message):
     code = message.text
-    cur.execute("SELECT * FROM animelar WHERE code=?", (code,))
-    res = cur.fetchone()
-    if res:
-        builder = InlineKeyboardBuilder()
-        for i in range(1, res[3] + 1):
-            builder.button(text=str(i), callback_data=f"ep_{code}_{i}")
-        builder.adjust(5)
-        await message.answer_photo(photo=res[2], caption=f"🎬 <b>{res[1]}</b>", reply_markup=builder.as_markup(), parse_mode="HTML")
+    b_name = bot.get_me().username
+    
+    caption = (
+        f"📺 **{user_data['name']}**\n\n"
+        f"📽 Qismlarni tanlang:\n"
+        f"📀 Jami: {user_data['parts']}\n"
+        f"🌟 Reyting: 0.0/10\n"
+        f"🎭 Janr: {user_data['genre']}\n\n"
+        f"🔢 Kod: {code}"
+    )
+    
+    markup = types.InlineKeyboardMarkup(row_width=3)
+    if user_data['parts'].isdigit():
+        total = int(user_data['parts'])
+        btns = [types.InlineKeyboardButton(f"{i}-qism", url=f"https://t.me/{b_name}?start={code}_{i}") for i in range(1, total+1)]
+        markup.add(*btns)
     else:
-        await message.answer("❌ Topilmadi")
+        markup.add(types.InlineKeyboardButton("🎬 Tomosha qilish", url=f"https://t.me/{b_name}?start={code}"))
+    
+    markup.row(types.InlineKeyboardButton("🏠 Bosh menyu", url=f"https://t.me/{b_name}"))
+    
+    try:
+        bot.send_photo(CHANNEL_ID, user_data['photo'], caption=caption, reply_markup=markup, parse_mode="Markdown")
+        bot.send_message(message.chat.id, "✅ Post kanalga yuborildi!")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Xato: {e}")
 
-# TUGMA BOSILGANDA
-@dp.callback_query(F.data.startswith("ep_"))
-async def callback_handler(callback: types.CallbackQuery):
-    _, code, ep = callback.data.split("_")
-    cur.execute("SELECT link FROM qismlar WHERE code=? AND ep_num=?", (code, ep))
-    res = cur.fetchone()
-    if res:
-        await callback.message.answer(f"🎞 {ep}-qism:\n{res[0]}")
+# --- CALLBACK (OBUNA TEKSHIRISH) ---
+@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
+def check_callback(call):
+    if check_sub(call.from_user.id):
+        bot.edit_message_text("✅ Rahmat! Endi botdan foydalanishingiz mumkin. /start bosing.", call.message.chat.id, call.message.message_id)
     else:
-        await callback.message.answer("⚠️ Hali yuklanmagan")
-    await callback.answer()
+        bot.answer_callback_query(call.id, "❌ Siz hali ham kanalga a'zo emassiz!", show_alert=True)
 
-async def main():
-    Thread(target=run_web, daemon=True).start()
-    logging.basicConfig(level=logging.INFO)
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# --- BOTNI RUN QILISH ---
+bot.infinity_polling()
