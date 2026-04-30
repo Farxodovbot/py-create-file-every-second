@@ -18,7 +18,7 @@ def keep_alive():
     t.start()
 
 # 2. SOZLAMALAR
-TOKEN = "8635058894:AAFJl1zP6rbYyNTqna4j2S5IH451pk0DbRA"
+TOKEN = 8635058894:AAFwtpGiEfNjx5aTF7Z73ujlUgbEmlUSOiM
 ADMIN_ID = 7253593181
 CHANNEL_ID = "@AnimeFonuzbaza"
 BOT_USERNAME = "AnimeFon_uz_Bot"
