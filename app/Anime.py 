@@ -1,0 +1,161 @@
+import telebot
+from telebot import types
+import json
+import os
+from threading import Thread
+from flask import Flask
+
+# --- KONFIGURATSIYA ---
+TOKEN = '8635058894:AAHt945xJp5f6emU5IDaG0qDHNBOhqiGzKs'
+ADMIN_ID = 7253593181
+CHANNEL_ID = -1003863245997
+CHANNEL_LINK = "https://t.me/AnimeFonuzbaza"
+BOT_USERNAME = "SizningBotUsername" # @ belgisiz botingizning usernamesini yozing
+DB_FILE = 'anime_data.json'
+USERS_FILE = 'users.json'
+
+bot = telebot.TeleBot(TOKEN)
+app = Flask('')
+
+# --- BAZA BILAN ISHLASH ---
+def load_db(file):
+    if os.path.exists(file):
+        with open(file, 'r', encoding='utf-8') as f:
+            try: return json.load(f)
+            except: return {}
+    return {}
+
+def save_db(data, file):
+    with open(file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+anime_db = load_db(DB_FILE)
+users_db = load_db(USERS_FILE)
+
+# --- OBUNA NAZORATI ---
+def is_subscribed(user_id):
+    if int(user_id) == ADMIN_ID: return True
+    try:
+        status = bot.get_chat_member(CHANNEL_ID, user_id).status
+        return status in ['member', 'administrator', 'creator']
+    except: return False
+
+def send_sub_msg(chat_id, code=None):
+    markup = types.InlineKeyboardMarkup()
+    markup.row(types.InlineKeyboardButton("1️⃣ Kanalga a'zo bo'lish ➕", url=CHANNEL_LINK))
+    # Agar kod bo'lsa, tekshirish tugmasiga kodni biriktiramiz
+    data = f"recheck_{code}" if code else "recheck"
+    markup.row(types.InlineKeyboardButton("2️⃣ ✅ Tasdiqlash", callback_query_data=data))
+    bot.send_message(chat_id, "🛑 **Botdan foydalanish uchun kanalga a'zo bo'ling!**", reply_markup=markup, parse_mode="Markdown")
+
+# --- ANIME QISMLARINI CHIQARISH ---
+def send_anime_parts(chat_id, code):
+    if code in anime_db:
+        anime = anime_db[code]
+        if not anime['qismlar']:
+            bot.send_message(chat_id, "⚠️ Bu animening qismlari hali yuklanmagan.")
+            return
+        
+        markup = types.InlineKeyboardMarkup(row_width=5)
+        btns = [types.InlineKeyboardButton(f"{i+1}", callback_query_data=f"pv_{code}_{i}") for i in range(len(anime['qismlar']))]
+        markup.add(*btns)
+        bot.send_message(chat_id, f"🎬 **{anime['nomi']}**\n\nQismni tanlang:", reply_markup=markup, parse_mode="Markdown")
+    else:
+        bot.send_message(chat_id, "❌ Bunday kodli anime topilmadi.")
+
+# --- START (Deep Link bilan) ---
+@bot.message_handler(commands=['start'])
+def start_handler(message):
+    uid = str(message.from_user.id)
+    if uid not in users_db:
+        users_db[uid] = {"name": message.from_user.first_name}
+        save_db(users_db, USERS_FILE)
+
+    # Start bilan kelgan kodni olish (/start 101)
+    args = message.text.split()
+    code = args[1] if len(args) > 1 else None
+
+    if not is_subscribed(message.from_user.id):
+        send_sub_msg(message.chat.id, code)
+        return
+
+    if code:
+        send_anime_parts(message.chat.id, code)
+    elif int(uid) == ADMIN_ID:
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            types.InlineKeyboardButton("📊 Statistika", callback_query_data="admin_stats"),
+            types.InlineKeyboardButton("📢 Xabar tarqatish", callback_query_data="admin_broadcast"),
+            types.InlineKeyboardButton("➕ Yangi Anime", callback_query_data="admin_add"),
+            types.InlineKeyboardButton("🎬 Qism qo'shish", callback_query_data="admin_add_part"),
+            types.InlineKeyboardButton("🚀 Kanalga post", callback_query_data="admin_post")
+        )
+        bot.send_message(message.chat.id, "🛠 **Admin panel:**", reply_markup=markup, parse_mode="Markdown")
+    else:
+        bot.send_message(message.chat.id, "✅ Xush kelibsiz! Anime kodini yuboring.")
+
+# --- CALLBACKLAR ---
+@bot.callback_query_handler(func=lambda call: True)
+def callback_inline(call):
+    uid = call.from_user.id
+    
+    if call.data.startswith("recheck"):
+        code = call.data.split("_")[1] if "_" in call.data else None
+        if is_subscribed(uid):
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            if code: send_anime_parts(call.message.chat.id, code)
+            else: bot.send_message(call.message.chat.id, "✅ Tasdiqlandi! Kodni yuboring.")
+        else:
+            bot.answer_callback_query(call.id, "❌ Hali a'zo emassiz!", show_alert=True)
+
+    elif call.data.startswith("pv_"):
+        _, code, idx = call.data.split("_")
+        video_id = anime_db[code]['qismlar'][int(idx)]
+        bot.send_video(call.message.chat.id, video_id, caption=f"🎬 {anime_db[code]['nomi']}\n✅ {int(idx)+1}-qism")
+        bot.answer_callback_query(call.id)
+
+    # Admin callbacklari... (qolgan qismlari avvalgidek)
+    elif uid == ADMIN_ID:
+        if call.data == "admin_post":
+            msg = bot.send_message(call.message.chat.id, "🚀 Kanalga postni (rasm/video) yuboring. Men unga 'Tomosha qilish' tugmasini qo'shaman. Xabar ichida anime kodini yozishni unutmang (masalan: #kod101):")
+            bot.register_next_step_handler(msg, prepare_channel_post)
+        elif call.data == "admin_stats":
+            bot.send_message(call.message.chat.id, f"📊 A'zolar: {len(users_db)}\n🎬 Animelar: {len(anime_db)}")
+        elif call.data == "admin_add":
+            msg = bot.send_message(call.message.chat.id, "➕ Anime kodini kiriting:")
+            bot.register_next_step_handler(msg, lambda m: bot.register_next_step_handler(bot.send_message(m.chat.id, f"Kod {m.text}. Nomini yuboring:"), lambda n: save_new_anime(n, m.text)))
+
+# --- KANALGA TUGMALI POST YUBORISH ---
+def prepare_channel_post(message):
+    # Matndan kodni qidiramiz (masalan #101 yoki shunchaki 101)
+    import re
+    codes = re.findall(r'\d+', message.caption if message.caption else message.text)
+    
+    if not codes:
+        bot.send_message(message.chat.id, "❌ Xabarda anime kodi topilmadi!")
+        return
+
+    code = codes[0]
+    markup = types.InlineKeyboardMarkup()
+    # Deep Link yaratish: t.me/bot_username?start=kod
+    watch_url = f"https://t.me/{BOT_USERNAME}?start={code}"
+    markup.add(types.InlineKeyboardButton("🍿 Tomosha qilish", url=watch_url))
+
+    try:
+        bot.copy_message(CHANNEL_ID, message.chat.id, message.message_id, reply_markup=markup)
+        bot.send_message(message.chat.id, "✅ Kanalga tugma bilan yuborildi!")
+    except:
+        bot.send_message(message.chat.id, "❌ Xatolik!")
+
+def save_new_anime(message, code):
+    anime_db[code] = {"nomi": message.text, "qismlar": []}
+    save_db(anime_db, DB_FILE)
+    bot.send_message(message.chat.id, f"✅ Anime '{message.text}' yaratildi.")
+
+# --- SERVER VA POLLING ---
+@app.route('/')
+def home(): return "OK"
+
+if __name__ == "__main__":
+    Thread(target=lambda: app.run(host='0.0.0.0', port=8080)).start()
+    bot.infinity_polling(skip_pending=True)
