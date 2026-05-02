@@ -22,7 +22,7 @@ def keep_alive():
     t.start()
 
 # --- ASOSIY SOZLAMALAR ---
-TOKEN = "8635058894:AAE318FpriSxbjPmUSgsze9LCKtT1veE0zR4" # Tokeningizni yangilang!
+TOKEN = "8635058894:AAHt945xJp5f6emU5IDaG0qDHNBOhqiGzKs" # Tokeningizni yangilang!
 ADMIN_ID = 7253539181
 CHANNEL_ID = "@AnimeFonzbaza"
 BOT_USERNAME = "AnimeFon_uz_Bot"
