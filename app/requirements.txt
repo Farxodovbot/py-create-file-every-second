@@ -1,3 +1,1 @@
-
-pyTelegramBotAPI
-flask
+pip install aiogram==2.25.1
